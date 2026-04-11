@@ -9,13 +9,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-your-secret-key-here'
 
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['192.168.1.3', 'localhost', '127.0.0.1', 'talent-81t2.onrender.com', '.onrender.com', ]
-
-# Add Render domain if not in environment
-if 'RENDER' in os.environ:
-    ALLOWED_HOSTS.append('talent-81t2.onrender.com')
-    ALLOWED_HOSTS.append('.onrender.com')
-
+ALLOWED_HOSTS = ['192.168.1.3', 'localhost', '127.0.0.1']
 
 # Add Gemini API Key
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='your-gemini-api-key-here')
@@ -153,14 +147,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# ============ RENDER PRODUCTION SETTINGS ============
-if 'RENDER' in os.environ:
-    DEBUG = False
-    SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    
 # Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
@@ -316,3 +302,4 @@ SPECTACULAR_SETTINGS = {
         'drf_spectacular.hooks.preprocess_exclude_path_format',
     ],
 }
+
