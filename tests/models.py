@@ -48,6 +48,17 @@ class Test(models.Model):
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     
+    # Tab warning tracking
+    tab_warning_count = models.IntegerField(default=0)
+    last_tab_warning_at = models.DateTimeField(null=True, blank=True)
+    tab_warning_history = models.JSONField(default=list, blank=True)
+    
+    # Force submit tracking
+    force_submitted = models.BooleanField(default=False)
+    force_submit_reason = models.CharField(max_length=100, blank=True, null=True)
+    force_submit_warning_count = models.IntegerField(default=0)
+    force_submitted_at = models.DateTimeField(null=True, blank=True)
+    
     class Meta:
         db_table = 'tests'
         indexes = [

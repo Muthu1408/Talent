@@ -15,7 +15,9 @@ urlpatterns = [
 
     path('generate-ai-test/', views.generate_ai_test, name='generate-ai-test'),
 
-    
+    path('tests/<str:pk>/tab-warning/', views.test_tab_warning, name='test-tab-warning'),
+    path('tests/<str:pk>/force-submit/', views.test_force_submit, name='test-force-submit'),
+
     path('admin/test-results/', views.admin_test_results, name='admin_test_results'),
     path('admin/test-results/<str:test_id>/', views.admin_test_detail, name='admin_test_detail'),
     # path('admin/candidate/<int:candidate_id>/test-history/', views.admin_candidate_test_history, name='admin_candidate_test_history'),

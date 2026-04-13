@@ -16,6 +16,18 @@ if 'RENDER' in os.environ:
     ALLOWED_HOSTS.append('talent-81t2.onrender.com')
     ALLOWED_HOSTS.append('.onrender.com')
 
+# ✅ ADD THIS - CSRF Trusted Origins for Render
+CSRF_TRUSTED_ORIGINS = [
+    'https://talent-81t2.onrender.com',
+    'https://*.onrender.com',
+]
+
+# If in production, also set these
+if 'RENDER' in os.environ:
+    CSRF_TRUSTED_ORIGINS = [
+        'https://talent-81t2.onrender.com',
+        'https://*.onrender.com',
+    ]
 
 # Add Gemini API Key
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='your-gemini-api-key-here')
@@ -230,7 +242,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.1.4:5173",
     "http://192.168.1.4:8000",
     "ws://localhost:5173",  
-    "ws://192.168.1.3:5173",   
+    "ws://192.168.1.3:5173", 
+    "https://talent-81t2.onrender.com",  
+    "https://*.onrender.com",   
 ]
 
 # Email settings (for forgot password)

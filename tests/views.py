@@ -1429,3 +1429,213 @@ def admin_test_statistics(request):
             'success': False,
             'message': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+from django.utils import timezone
+from datetime import datetime
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def test_tab_warning(request, pk):
+    """
+    Track tab switches during test
+    POST /api/tests/{test_id}/tab-warning/
+    
+    Request body:
+    {
+        "warning_count": 1,  # Current warning count
+        "auto_submit": false  # Whether this warning triggered auto-submit
+    }
+    """
+    try:
+        # Validate ObjectId
+        if len(pk) == 24 and all(c in '0123456789abcdefABCDEF' for c in pk):
+            test = Test.objects.get(_id=ObjectId(pk))
+        else:
+            # Try as UUID
+            clean_pk = pk.replace('-', '')
+            test_uuid = uuid.UUID(clean_pk)
+            test = Test.objects.get(_id=test_uuid)
+            
+    except (InvalidId, ValueError, Test.DoesNotExist):
+        return Response({
+            'success': False,
+            'message': 'Test not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check permissions
+    is_admin = request.user.role == 'admin'
+    is_owner = str(test.candidate_id) == str(request.user.id)
+    
+    # Auto-assign test if needed
+    if not (is_admin or is_owner) and request.user.role == 'candidate':
+        test.candidate = request.user
+        test.save()
+        is_owner = True
+    
+    if not (is_admin or is_owner):
+        return Response({
+            'success': False,
+            'message': 'Permission denied'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Check test status
+    if test.status != 'in_progress':
+        return Response({
+            'success': False,
+            'message': f'Test is not in progress. Current status: {test.status}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get warning data from request
+    warning_count = request.data.get('warning_count', 0)
+    auto_submit = request.data.get('auto_submit', False)
+    
+    # Update test with tab warning info
+    if not hasattr(test, 'tab_warning_count'):
+        test.tab_warning_count = 0
+    
+    test.tab_warning_count = warning_count
+    test.last_tab_warning_at = timezone.now()
+    
+    # Save warning history (optional - store in a separate field)
+    if not hasattr(test, 'tab_warning_history'):
+        test.tab_warning_history = []
+    
+    test.tab_warning_history.append({
+        'timestamp': timezone.now().isoformat(),
+        'count': warning_count,
+        'auto_submitted': auto_submit
+    })
+    
+    test.save()
+    
+    response_data = {
+        'success': True,
+        'message': 'Tab warning recorded',
+        'data': {
+            'warning_count': warning_count,
+            'max_warnings_allowed': 3,  # You can make this configurable
+            'auto_submitted': auto_submit,
+            'test_status': test.status
+        }
+    }
+    
+    # If auto-submit was triggered, return additional info
+    if auto_submit:
+        response_data['data']['auto_submit_message'] = 'Test auto-submitted due to multiple tab switches'
+        response_data['data']['results'] = {
+            'percentage': float(test.percentage),
+            'passed': test.passed,
+            'total_marks': test.total_marks,
+            'obtained_marks': test.obtained_marks
+        }
+    
+    return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def test_force_submit(request, pk):
+    """
+    Force submit test (auto-submit when tab switch limit exceeded)
+    POST /api/tests/{test_id}/force-submit/
+    
+    Request body (optional):
+    {
+        "reason": "tab_switch_limit_exceeded",
+        "warning_count": 3
+    }
+    """
+    try:
+        # Validate ObjectId
+        if len(pk) == 24 and all(c in '0123456789abcdefABCDEF' for c in pk):
+            test = Test.objects.get(_id=ObjectId(pk))
+        else:
+            # Try as UUID
+            clean_pk = pk.replace('-', '')
+            test_uuid = uuid.UUID(clean_pk)
+            test = Test.objects.get(_id=test_uuid)
+            
+    except (InvalidId, ValueError, Test.DoesNotExist):
+        return Response({
+            'success': False,
+            'message': 'Test not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check permissions
+    is_admin = request.user.role == 'admin'
+    is_owner = str(test.candidate_id) == str(request.user.id)
+    
+    if not (is_admin or is_owner):
+        return Response({
+            'success': False,
+            'message': 'Permission denied'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Check if test can be submitted
+    if test.status == 'completed':
+        return Response({
+            'success': False,
+            'message': 'Test already completed'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    if test.status == 'expired':
+        return Response({
+            'success': False,
+            'message': 'Test already expired'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get force submit reason
+    reason = request.data.get('reason', 'force_submit')
+    warning_count = request.data.get('warning_count', 0)
+    
+    # If test is in progress, submit it
+    if test.status == 'in_progress':
+        # Get existing answers (or empty dict if none)
+        answers = test.answers or {}
+        
+        # Complete the test
+        test.complete(answers)
+        
+        # Add force submit metadata
+        test.force_submitted = True
+        test.force_submit_reason = reason
+        test.force_submit_warning_count = warning_count
+        test.force_submitted_at = timezone.now()
+        test.save()
+        
+        # Refresh to get updated values
+        test.refresh_from_db()
+        
+        return Response({
+            'success': True,
+            'message': f'Test auto-submitted: {reason}',
+            'data': {
+                'test_id': test.test_id,
+                'status': test.status,
+                'percentage': float(test.percentage),
+                'passed': test.passed,
+                'total_marks': test.total_marks,
+                'obtained_marks': test.obtained_marks,
+                'force_submitted': True,
+                'reason': reason
+            }
+        })
+    else:
+        # If test is pending, just update status
+        test.status = 'expired'
+        test.force_submitted = True
+        test.force_submit_reason = reason
+        test.force_submitted_at = timezone.now()
+        test.save()
+        
+        return Response({
+            'success': True,
+            'message': f'Test force closed: {reason}',
+            'data': {
+                'test_id': test.test_id,
+                'status': test.status,
+                'force_submitted': True,
+                'reason': reason
+            }
+        })
